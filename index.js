@@ -5,19 +5,24 @@ import express from "express";
 import chokidar from "chokidar";
 import crypto from "node:crypto";
 import { getFileList } from "./utils.js";
-
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+const PORT = 9183;
+
+const certsDir = path.join(__dirname, "certificates");
 
 /** @type {Object.<string, crypto.X509Certificate>} */
 const X509Certificates = {};
 /** @type {Object.<string, crypto.KeyObject>} */
 const privateKeys = {};
 
-const certsDir = path.join(__dirname, "certificates");
-
 const app = express();
 
+/**
+ * @param {string} fileName
+ * @returns {void}
+ */
 const processFile = (fileName) => {
     if (X509Certificates[fileName]) return;
     try {
@@ -52,13 +57,31 @@ chokidar.watch(certsDir)
         }
     });
 
-setInterval(async () => {
+const periodicUpdater = setInterval(async () => {
     const files = await getFileList(certsDir);
     for (const fileName of files) {
         if (path.extname(fileName) === ".pem") processFile(fileName);
     }
 }, 5000);
 
-app.listen(9183, () => {
-    console.log("listening");
+const server = app.listen(PORT, () => {
+    console.log(`listening on :${PORT}`);
 });
+
+const terminate = () => {
+    console.warn("Termination signal received: closing HTTP server, will hard quit after 5 seconds");
+
+    if (periodicUpdater) clearInterval(periodicUpdater);
+
+    if (server) {
+        server.close(() => {
+            console.log("HTTP server gracefully closed");
+            process.exit(0);
+        });
+    }
+
+    setTimeout(() => { return process.exit(0); }, 5000);
+};
+
+process.on("SIGTERM", terminate);
+process.on("SIGINT", terminate);
