@@ -2,6 +2,9 @@ import { join } from "node:path";
 import { readdir } from "node:fs/promises";
 
 /**
+ * Get a list of files inside a directory recursively.
+ *
+ * Copied from https://www.webmound.com/nodejs-get-files-in-directories-recursively/
  * @param {string} dirName Pathname of the directory.
  * @returns {string[]}
  */
