@@ -1,10 +1,13 @@
+#!/usr/bin/env node
+
 import fs from "node:fs";
+import net from "node:net";
 import url from "node:url";
 import path from "node:path";
 import express from "express";
 import chokidar from "chokidar";
 import crypto from "node:crypto";
-import { getFileList } from "./utils.js";
+import { getFileList, findTLSCipherName } from "./utils.js"; // eslint-disable-line no-unused-vars
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -14,6 +17,8 @@ const certsDir = path.join(__dirname, "certificates");
 
 /** @type {Object.<string, crypto.X509Certificate>} */
 const X509Certificates = {};
+/** @type {Object.<string, Buffer>} */
+const rawX509Certificates = {};
 /** @type {Object.<string, crypto.KeyObject>} */
 const privateKeys = {};
 
@@ -26,12 +31,14 @@ const app = express();
 const processFile = (fileName) => {
     if (X509Certificates[fileName]) return;
     try {
-        const cert = new crypto.X509Certificate(fs.readFileSync(fileName));
+        const file = fs.readFileSync(fileName);
+        const cert = new crypto.X509Certificate(file);
         const keyFileName = fileName.replace(/\.pem$/i, ".key");
         if (fs.existsSync(keyFileName)) {
             const key = crypto.createPrivateKey(fs.readFileSync(keyFileName));
             if (cert.checkPrivateKey(key)) {
                 X509Certificates[fileName] = cert;
+                rawX509Certificates[cert.fingerprint256] = file;
                 privateKeys[cert.fingerprint256] = key;
                 console.log("loaded keypair of", fileName);
             }
@@ -52,6 +59,7 @@ chokidar.watch(certsDir)
         if (X509Certificates[pathName]) {
             const cert = X509Certificates[pathName];
             delete X509Certificates[pathName];
+            delete rawX509Certificates[cert.fingerprint256];
             delete privateKeys[cert.fingerprint256];
             console.log("deleted keypair of", pathName);
         }
@@ -63,6 +71,35 @@ const periodicUpdater = setInterval(async () => {
         if (path.extname(fileName) === ".pem") processFile(fileName);
     }
 }, 5000);
+
+app.get("/certs", (req, res, next) => { // eslint-disable-line no-unused-vars
+    // eslint-disable-next-line no-unused-vars
+    const { cipher_suites, server_name, signature_schemes } = req.query;
+    if (!server_name) return res.status(400).send("Bad Request");
+
+    const matchedCert = Object.values(X509Certificates).find((cert) => (net.isIP(server_name) === 0 ? cert.checkHost(server_name) : cert.checkIP(server_name)));
+    if (!matchedCert) return res.status(404).send("Certificate Not Found");
+    const matchedCertFile = rawX509Certificates[matchedCert.fingerprint256];
+    const matchedKey = privateKeys[matchedCert.fingerprint256];
+
+    // console.log(cipher_suites.split(",").map(c => findTLSCipherName(c)));
+
+    res
+        .status(200)
+        .header("Content-Type", "application/x-pem-file")
+        .send(
+            Buffer.concat([
+                matchedCertFile,
+                Buffer.from("\n\n"),
+                Buffer.from(
+                    matchedKey.export({
+                        type: "pkcs8",
+                        format: "pem",
+                    }),
+                ),
+            ]),
+        );
+});
 
 const server = app.listen(PORT, () => {
     console.log(`listening on :${PORT}`);

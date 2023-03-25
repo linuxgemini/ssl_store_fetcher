@@ -1,13 +1,29 @@
 {
   "name": "ssl_store_fetcher",
   "version": "1.0.0",
-  "description": "",
+  "description": "A simple express.js app for serving SSL certificates for use with Caddy's `get_certificate http` sub-directive.",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
-  "license": "UNLICENSED",
+  "author": {
+    "name": "İlteriş Yağıztegin Eroğlu (linuxgemini)",
+    "email": "ilteris@asenkron.com.tr",
+    "url": "https://linuxgemini.space"
+  },
+  "maintainers": [
+    {
+      "name": "İlteriş Yağıztegin Eroğlu (linuxgemini)",
+      "email": "ilteris@asenkron.com.tr",
+      "url": "https://linuxgemini.space"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/linuxgemini/ssl_store_fetcher.git"
+  },
+  "license": "MIT",
   "devDependencies": {
     "eslint": "^8.36.0"
   },
