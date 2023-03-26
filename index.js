@@ -7,7 +7,7 @@ import path from "node:path";
 import express from "express";
 import chokidar from "chokidar";
 import crypto from "node:crypto";
-import { getFileList, findTLSCipherName } from "./utils.js"; // eslint-disable-line no-unused-vars
+import { getFileList, findTLSCipherName, findTLSSignatureSchemeName } from "./utils.js"; // eslint-disable-line no-unused-vars
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -31,14 +31,15 @@ const app = express();
 const processFile = (fileName) => {
     if (X509Certificates[fileName]) return;
     try {
-        const file = fs.readFileSync(fileName);
-        const cert = new crypto.X509Certificate(file);
+        const certFile = fs.readFileSync(fileName);
+        const cert = new crypto.X509Certificate(certFile);
         const keyFileName = fileName.replace(/\.pem$/i, ".key");
         if (fs.existsSync(keyFileName)) {
-            const key = crypto.createPrivateKey(fs.readFileSync(keyFileName));
+            const keyFile = fs.readFileSync(keyFileName);
+            const key = crypto.createPrivateKey(keyFile);
             if (cert.checkPrivateKey(key)) {
                 X509Certificates[fileName] = cert;
-                rawX509Certificates[cert.fingerprint256] = file;
+                rawX509Certificates[cert.fingerprint256] = certFile;
                 privateKeys[cert.fingerprint256] = key;
                 console.log("loaded keypair of", fileName);
             }
@@ -73,16 +74,17 @@ const periodicUpdater = setInterval(async () => {
 }, 5000);
 
 app.get("/certs", (req, res, next) => { // eslint-disable-line no-unused-vars
-    // eslint-disable-next-line no-unused-vars
-    const { cipher_suites, server_name, signature_schemes } = req.query;
+    const { server_name } = req.query;
     if (!server_name) return res.status(400).send("Bad Request");
+
+    let { cipher_suites, signature_schemes } = req.query;
+    cipher_suites = cipher_suites.split(",").map(c => findTLSCipherName(c)); // eslint-disable-line no-unused-vars
+    signature_schemes = signature_schemes.split(",").map(s => findTLSSignatureSchemeName(s)); // eslint-disable-line no-unused-vars
 
     const matchedCert = Object.values(X509Certificates).find((cert) => (net.isIP(server_name) === 0 ? cert.checkHost(server_name) : cert.checkIP(server_name)));
     if (!matchedCert) return res.status(404).send("Certificate Not Found");
     const matchedCertFile = rawX509Certificates[matchedCert.fingerprint256];
     const matchedKey = privateKeys[matchedCert.fingerprint256];
-
-    // console.log(cipher_suites.split(",").map(c => findTLSCipherName(c)));
 
     res
         .status(200)
