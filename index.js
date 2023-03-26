@@ -78,8 +78,8 @@ app.get("/certs", (req, res, next) => { // eslint-disable-line no-unused-vars
     if (!server_name) return res.status(400).send("Bad Request");
 
     let { cipher_suites, signature_schemes } = req.query;
-    cipher_suites = cipher_suites.split(",").map(c => findTLSCipherName(c)); // eslint-disable-line no-unused-vars
-    signature_schemes = signature_schemes.split(",").map(s => findTLSSignatureSchemeName(s)); // eslint-disable-line no-unused-vars
+    cipher_suites = cipher_suites?.split(",").map(c => findTLSCipherName(c)); // eslint-disable-line no-unused-vars
+    signature_schemes = signature_schemes?.split(",").map(s => findTLSSignatureSchemeName(s)); // eslint-disable-line no-unused-vars
 
     const matchedCert = Object.values(X509Certificates).find((cert) => (net.isIP(server_name) === 0 ? cert.checkHost(server_name) : cert.checkIP(server_name)));
     if (!matchedCert) return res.status(404).send("Certificate Not Found");
